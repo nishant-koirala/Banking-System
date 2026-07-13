@@ -74,8 +74,8 @@
                 LocalDateTime.now(),
                 0
             );
-            transaction.setStatus(Transaction.Status.COMPLETED);
-            transactionsHistory.add(transaction);
+            transaction.setStatus(Transaction.Status.COMPLETED);  
+            transactionsHistory.add(transaction); 
         }
 
  }
