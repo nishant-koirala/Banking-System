@@ -12,12 +12,14 @@ import exception.AccountNotFoundException;
 import exception.DuplicateTransactionException;
 import model.Account;
 import model.Transaction;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Bank {
     private Map<String, Account> accounts;        // HashMap — fast lookup by account ID
     private int nextAccountNumber;
     private Set<String> processedTransactionIds = new HashSet<>(); // HashSet — idempotency guard, remembers every txn ID we've accepted
-
+    private TreeMap<LocalDateTime, List<Transaction>> transactionsByTime = new TreeMap<>();
     // ===================== PENDING TRANSACTION PROCESSING (PriorityQueue) =====================
 
     // Defines the processing order for the heap below.
@@ -51,7 +53,8 @@ public class Bank {
 
 
     public Bank() {
-        this.accounts = new HashMap<>();
+        // this.accounts = new HashMap<>();     // Original — not thread-safe, can throw ConcurrentModificationException if multiple threads access it simultaneously
+        this.accounts = new ConcurrentHashMap<>(); // Use ConcurrentHashMap for thread-safe access
         this.nextAccountNumber = 1;
     }
 
@@ -72,17 +75,48 @@ public class Bank {
         }
         return account;
     }
+    public void deposit(String accountId, double amount) {
+    Account account = getAccount(accountId);
+    synchronized (account) {
+        account.deposit(amount);
+    }
+}
+
+    public void withdraw(String accountId, double amount) {
+        Account account = getAccount(accountId);
+        synchronized (account) {
+            account.withdraw(amount);
+        }
+    }
+
 
 
     // Executes an IMMEDIATE transfer — no queueing, no priority. Used directly by submitTransaction()
     // below, and reused internally by processNextPendingTransaction() once a queued transaction
     // reaches the front of the line. This is the only place actual balance mutation happens.
-    public void transfer(String fromAccountId, String toAccountId, double amount) {
-        Account fromAccount = getAccount(fromAccountId); // throws AccountNotFoundException if missing
-        Account toAccount = getAccount(toAccountId);
+public void transfer(String fromAccountId, String toAccountId, double amount) {
+    Account fromAccount = getAccount(fromAccountId);
+    Account toAccount = getAccount(toAccountId);
 
-        fromAccount.withdraw(amount, toAccountId); // version 2 — records ACC002 as destination
-        toAccount.deposit(amount, fromAccountId);   // version 2 — records ACC001 as source
+    // Always lock accounts in consistent alphabetical ID order
+    // This prevents deadlock when two threads transfer in opposite directions simultaneously
+    // e.g. Thread A: ACC001→ACC002, Thread B: ACC002→ACC001
+    // Without consistent ordering, both threads could hold one lock and wait for the other forever
+    // With consistent ordering, both threads always try ACC001 first — one wins, one waits safely
+    Account firstLock  = fromAccountId.compareTo(toAccountId) < 0 ? fromAccount : toAccount;
+    Account secondLock = fromAccountId.compareTo(toAccountId) < 0 ? toAccount : fromAccount;
+
+    synchronized (firstLock) {
+        synchronized (secondLock) {
+            fromAccount.withdraw(amount, toAccountId);
+            toAccount.deposit(amount, fromAccountId);
+        }
+    }
+}
+
+  public double getBalance(String accountId) {
+        Account account = getAccount(accountId);
+        return account.getBalance();
     }
 
     // Original "fire immediately" submission path — unchanged. Checks the HashSet for a duplicate
@@ -131,6 +165,13 @@ public class Bank {
         return pendingQueue.size();
     }
 
+
+
+    private void indexTransaction(Transaction t) {
+    transactionsByTime
+        .computeIfAbsent(t.getTimestamp(), k -> new ArrayList<>())
+        .add(t);
+}
     /**
      * Pops the single highest-priority pending transaction and actually executes it
      * via the existing transfer() logic. On failure (bad account, insufficient funds),
@@ -156,10 +197,18 @@ public class Bank {
         }
 
         // Record the outcome (success or failure) in the Bank-wide audit trail.
+        indexTransaction(next);
         processedLog.add(next);
         return next;
     }
-
+    public List<Transaction> getTransactionsBetween(LocalDateTime start, LocalDateTime end) {
+    List<Transaction> result = new ArrayList<>();
+    transactionsByTime
+        .subMap(start, true, end, true)
+        .values()
+        .forEach(result::addAll);
+    return result;
+}
     // Drains the entire queue, processing one transaction at a time in priority order,
     // until nothing is left pending.
     public void processAllPendingTransactions() {

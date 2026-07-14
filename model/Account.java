@@ -72,7 +72,7 @@
                 toAccountId,      // now correctly records whoever actually received the money
                 amount,
                 LocalDateTime.now(),
-                0
+                1
             );
             transaction.setStatus(Transaction.Status.COMPLETED);  
             transactionsHistory.add(transaction); 

@@ -1,112 +1,143 @@
-import java.util.UUID;
 
-import exception.DuplicateTransactionException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Scanner;
+
+import exception.AccountNotFoundException;
+import exception.InsufficientBalanceException;
 import model.Account;
 import model.Transaction;
 import services.Bank;
 
 public class Main {
+    public static void main(String[] args) throws InterruptedException {
 
-    // Small helper so submissions land at visibly different timestamps instead of all
-    // landing within the same millisecond. Wraps Thread.sleep's checked InterruptedException
-    // so call sites don't need their own try/catch.
-    private static void pause(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // restore the interrupt flag, don't swallow it
+        Bank bank = new Bank();
+
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            System.out.println("-----------------Banking System Menu-----------------");
+            System.out.println("1. Create Account");
+            System.out.println("2. Deposit");
+            System.out.println("3. Withdraw");
+            System.out.println("4. Transfer");
+            System.out.println("5. Check Balance");
+            System.out.println("6. Check Transaction History");
+            System.out.println("7. Show Transactions of last X minutes");
+            System.out.println("8. Exit");
+            System.out.print("Enter your choice: ");
+            int choice = scanner.nextInt();
+            System.out.println("\n-----------------------------------------------------");
+
+            switch (choice) {
+                case 1:
+                    System.out.print("Enter account holder name: ");
+                    String name = scanner.next();
+                    System.out.print("Enter initial balance: ");
+                    double balance = scanner.nextDouble();
+                    Account newAccount = bank.createAccount(name, balance);
+                    System.out.println("Account created successfully! Account ID: " + newAccount.getAccountId());
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 2:
+                    System.out.print("Enter the account ID to deposit into: ");
+                    String depositAccountId = scanner.next();
+                    System.out.print("Enter the amount to deposit: ");
+                    double depositAmount = scanner.nextDouble();
+                    try {
+                        bank.deposit(depositAccountId, depositAmount);
+                        System.out.println("Deposit successful!");
+                    } catch (AccountNotFoundException e) {
+                        System.out.println("Account not found!");
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+
+                case 3:
+                    System.out.print("Enter the account ID to withdraw from: ");
+                    String withdrawAccountId = scanner.next();
+                    System.out.print("Enter the amount to withdraw: ");
+                    double withdrawAmount = scanner.nextDouble();
+                    try {
+                        bank.withdraw(withdrawAccountId, withdrawAmount);
+                        System.out.println("Withdrawal successful!");
+                    } catch (AccountNotFoundException e) {
+                        System.out.println("Account not found!");
+                    } catch (InsufficientBalanceException e) {
+                        System.out.println("Insufficient balance!");
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+
+                case 4:
+                    System.out.print("Enter the source account ID: ");
+                    String fromAccountId = scanner.next();
+                    System.out.print("Enter the destination account ID: ");
+                    String toAccountId = scanner.next();
+                    System.out.print("Enter the amount to transfer: ");
+                    double transferAmount = scanner.nextDouble();
+                    try {
+                        bank.transfer(fromAccountId, toAccountId, transferAmount);
+                        System.out.println("Transfer successful!");
+                    } catch (AccountNotFoundException e) {
+                        System.out.println("Account not found!");
+                    } catch (InsufficientBalanceException e) {
+                        System.out.println("Insufficient balance!");
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+
+                case 5:
+                    System.out.print("Enter the account ID to check balance: ");
+                    String balanceAccountId = scanner.next();
+                    try {
+                        double balanceAmount = bank.getBalance(balanceAccountId);
+                        System.out.println("Current balance: " + balanceAmount);
+                    } catch (AccountNotFoundException e) {
+                        System.out.println("Account not found!");
+                    }
+                    break;
+
+                case 6:
+                    System.out.print("Enter the account ID to check transaction history: ");
+                    String historyAccountId = scanner.next();
+                    try {
+                        List<Transaction> history = bank.getAccount(historyAccountId).getTransactionHistory();
+                        System.out.println("Transaction History for Account " + historyAccountId + ":");
+                        for (Transaction transaction : history) {
+                            System.out.println("- " + transaction);
+                        }
+                    } catch (AccountNotFoundException e) {
+                        System.out.println("Account not found!");
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+
+                case 7:
+                    System.out.println("Show Transaction of last X minutes");
+                    int minutes = scanner.nextInt();
+                    LocalDateTime start = LocalDateTime.now().minusMinutes(minutes);
+                    LocalDateTime end = LocalDateTime.now();
+                    List<Transaction> recentTransactions = bank.getTransactionsBetween(start, end);
+                    if (recentTransactions.isEmpty()) {
+                        System.out.println("No transactions found in the last " + minutes + " minutes.");
+                    } else {
+                        System.out.println("Transactions in the last " + minutes + " minutes:");
+                        for (Transaction transaction : recentTransactions) {
+                            System.out.println("- " + transaction);
+                        }
+                    }
+                    break;
+                case 8:
+                    System.out.println("Exiting the banking system. Goodbye!");
+                    scanner.close();
+                    System.exit(0);
+                default:
+                    System.out.println("Invalid choice!");
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+            }
+
         }
     }
-
-    public static void main(String[] args) {
-        
-Bank bank = new Bank();
-Account acc1 = bank.createAccount("Nishanta", 5000.0);
-Account acc2 = bank.createAccount("Ram", 3000.0);
-
-System.out.println("Before transfer:");
-System.out.println("ACC001 balance: " + acc1.getBalance()); // 5000.0
-System.out.println("ACC002 balance: " + acc2.getBalance()); // 3000.0
-
-bank.transfer(acc1.getAccountId(), acc2.getAccountId(), 1000.0);
-
-System.out.println("\nAfter transfer:");
-System.out.println("ACC001 balance: " + acc1.getBalance()); // 4000.0
-System.out.println("ACC002 balance: " + acc2.getBalance()); // 4000.0
-
-System.out.println("\nACC001 transaction history:");
-for (Transaction t : acc1.getTransactionHistory()) {
-    System.out.println(t);
 }
-
-System.out.println("\nACC002 transaction history:");
-for (Transaction t : acc2.getTransactionHistory()) {
-    System.out.println(t);
-}
-
-System.out.println("\n--- Idempotency Test ---");
-System.out.println("ACC001 balance before: " + acc1.getBalance());
-System.out.println("ACC002 balance before: " + acc2.getBalance());
-
-String txnId = UUID.randomUUID().toString();
-
-// First submission — should succeed
-bank.submitTransaction(txnId, acc1.getAccountId(), acc2.getAccountId(), 500.0);
-System.out.println("First submission processed successfully");
-System.out.println("ACC001 balance after first: " + acc1.getBalance());
-System.out.println("ACC002 balance after first: " + acc2.getBalance());
-
-// Second submission — same ID, should be rejected
-try {
-    bank.submitTransaction(txnId, acc1.getAccountId(), acc2.getAccountId(), 500.0);
-} catch (DuplicateTransactionException e) {
-    System.out.println("Duplicate caught: " + e.getMessage());
-}
-System.out.println("ACC001 balance after duplicate attempt: " + acc1.getBalance());
-System.out.println("ACC002 balance after duplicate attempt: " + acc2.getBalance());
-
-// New legitimate transaction — different ID, should succeed
-String newTxnId = UUID.randomUUID().toString();
-bank.submitTransaction(newTxnId, acc1.getAccountId(), acc2.getAccountId(), 200.0);
-System.out.println("New transaction processed successfully");
-System.out.println("ACC001 final balance: " + acc1.getBalance());
-System.out.println("ACC002 final balance: " + acc2.getBalance());
-
-// ---------------------------------------------------------------------
-// --- Priority Queue Test ---
-// Submit several pending transactions out of priority order, then process
-// the whole queue and watch them come out VIP -> PREMIUM -> STANDARD,
-// FIFO within the same tier.
-// ---------------------------------------------------------------------
-System.out.println("\n--- Priority Queue Test ---");
-System.out.println("ACC001 balance before: " + acc1.getBalance());
-System.out.println("ACC002 balance before: " + acc2.getBalance());
-
-bank.submitPendingTransaction(UUID.randomUUID().toString(),
-        acc1.getAccountId(), acc2.getAccountId(), 50.0, Bank.PRIORITY_STANDARD);
-pause(50);
-bank.submitPendingTransaction(UUID.randomUUID().toString(),
-        acc2.getAccountId(), acc1.getAccountId(), 200.0, Bank.PRIORITY_VIP);
-pause(50);
-bank.submitPendingTransaction(UUID.randomUUID().toString(),
-        acc1.getAccountId(), acc2.getAccountId(), 75.0, Bank.PRIORITY_PREMIUM);
-pause(50);
-bank.submitPendingTransaction(UUID.randomUUID().toString(),
-        acc2.getAccountId(), acc1.getAccountId(), 20.0, Bank.PRIORITY_STANDARD);
-pause(50);
-// Deliberately oversized — this account can't cover it, should come out FAILED, not crash the queue.
-bank.submitPendingTransaction(UUID.randomUUID().toString(),
-        acc1.getAccountId(), acc2.getAccountId(), 999999.0, Bank.PRIORITY_VIP);
-
-System.out.println("Queued " + bank.pendingCount() + " pending transactions.");
-System.out.println("Processing in priority order (VIP > PREMIUM > STANDARD, FIFO within tier):");
-
-bank.processAllPendingTransactions();
-
-for (Transaction t : bank.getProcessedLog()) {
-    System.out.println(t);
-}
-
-System.out.println("\nACC001 balance after queue processed: " + acc1.getBalance());
-System.out.println("ACC002 balance after queue processed: " + acc2.getBalance());
-}}
