@@ -2,8 +2,10 @@
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Scanner;
+import java.util.UUID;
 
 import exception.AccountNotFoundException;
+import exception.DuplicateTransactionException;
 import exception.InsufficientBalanceException;
 import model.Account;
 import model.Transaction;
@@ -21,10 +23,11 @@ public class Main {
             System.out.println("2. Deposit");
             System.out.println("3. Withdraw");
             System.out.println("4. Transfer");
-            System.out.println("5. Check Balance");
-            System.out.println("6. Check Transaction History");
-            System.out.println("7. Show Transactions of last X minutes");
-            System.out.println("8. Exit");
+            System.out.println("5. Pending Transaction Menu");
+            System.out.println("6. Check Balance");
+            System.out.println("7. Check Transaction History");
+            System.out.println("8. Show Transactions of last X minutes");
+            System.out.println("9. Exit");
             System.out.print("Enter your choice: ");
             int choice = scanner.nextInt();
             System.out.println("\n-----------------------------------------------------");
@@ -88,6 +91,10 @@ public class Main {
                     break;
 
                 case 5:
+                    handlePendingTransactionMenu(bank, scanner);
+                    break;
+
+                case 6:
                     System.out.print("Enter the account ID to check balance: ");
                     String balanceAccountId = scanner.next();
                     try {
@@ -98,7 +105,7 @@ public class Main {
                     }
                     break;
 
-                case 6:
+                case 7:
                     System.out.print("Enter the account ID to check transaction history: ");
                     String historyAccountId = scanner.next();
                     try {
@@ -113,7 +120,7 @@ public class Main {
                     System.out.println("\n-----------------------------------------------------");
                     break;
 
-                case 7:
+                case 8:
                     System.out.println("Show Transaction of last X minutes");
                     int minutes = scanner.nextInt();
                     LocalDateTime start = LocalDateTime.now().minusMinutes(minutes);
@@ -128,7 +135,7 @@ public class Main {
                         }
                     }
                     break;
-                case 8:
+                case 9:
                     System.out.println("Exiting the banking system. Goodbye!");
                     scanner.close();
                     System.exit(0);
@@ -138,6 +145,78 @@ public class Main {
                     break;
             }
 
+        }
+    }
+
+    private static void handlePendingTransactionMenu(Bank bank, Scanner scanner) {
+        while (true) {
+            System.out.println("----- Pending Transaction Menu -----");
+            System.out.println("1. Submit pending transfer");
+            System.out.println("2. Process next pending transaction");
+            System.out.println("3. Process all pending transactions");
+            System.out.println("4. Show pending transaction count");
+            System.out.println("5. Show processed transaction log");
+            System.out.println("6. Back to main menu");
+            System.out.print("Enter your choice: ");
+            int choice = scanner.nextInt();
+            System.out.println("\n-----------------------------------------------------");
+
+            switch (choice) {
+                case 1:
+                    System.out.print("Enter the source account ID: ");
+                    String fromAccountId = scanner.next();
+                    System.out.print("Enter the destination account ID: ");
+                    String toAccountId = scanner.next();
+                    System.out.print("Enter the amount to transfer: ");
+                    double amount = scanner.nextDouble();
+                    System.out.print("Enter priority (1=standard, 2=premium, 3=vip): ");
+                    int priority = scanner.nextInt();
+                    String transactionId = UUID.randomUUID().toString();
+                    try {
+                        bank.submitPendingTransaction(transactionId, fromAccountId, toAccountId, amount, priority);
+                        System.out.println("Pending transfer submitted with ID: " + transactionId);
+                    } catch (DuplicateTransactionException e) {
+                        System.out.println("Duplicate transaction ID!");
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 2:
+                    Transaction nextTransaction = bank.processNextPendingTransaction();
+                    if (nextTransaction == null) {
+                        System.out.println("No pending transactions to process.");
+                    } else {
+                        System.out.println("Processed transaction: " + nextTransaction);
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 3:
+                    bank.processAllPendingTransactions();
+                    System.out.println("All pending transactions processed.");
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 4:
+                    System.out.println("Pending transactions in queue: " + bank.pendingCount());
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 5:
+                    List<Transaction> processedLog = bank.getProcessedLog();
+                    if (processedLog.isEmpty()) {
+                        System.out.println("No processed transactions yet.");
+                    } else {
+                        System.out.println("Processed Transaction Log:");
+                        for (Transaction transaction : processedLog) {
+                            System.out.println("- " + transaction);
+                        }
+                    }
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+                case 6:
+                    return;
+                default:
+                    System.out.println("Invalid choice!");
+                    System.out.println("\n-----------------------------------------------------");
+                    break;
+            }
         }
     }
 }
